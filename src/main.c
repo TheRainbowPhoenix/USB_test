@@ -13,35 +13,6 @@
 // USB Interfaces
 static usb_interface_t const *interfaces[] = {&usb_ff_bulk, NULL};
 
-// Copied from gint/src/usb/classes/ff-bulk.c because it's not exposed
-static bool usb_fxlink_fill_header(usb_fxlink_header_t *header,
-	char const *application, char const *type, uint32_t data_size)
-{
-	if(strlen(application) > 16 || strlen(type) > 16) return false;
-
-	memset(header, 0, sizeof *header);
-	header->version = 0x00000100; // Little endian handled by compiler if needed, but for simplicity assuming LE system or manual swap if required.
-    // Actually gint assumes SH4/SH3 which is LE.
-    // If we want to be strictly correct we should use htole32 but it's not standard C.
-    // gint defines them in endian.h usually.
-    // Let's assume the platform is Little Endian for now as SH4 is.
-
-    // Correction: gint/include/gint/usb-ff-bulk.h includes <gint/config.h> and <gint/usb.h> which includes <endian.h>.
-    // But standard <endian.h> might not be available or might be <gint/defs/types.h> etc.
-    // Let's rely on gint's environment. `htole32` is likely available if we include <endian.h> or similar.
-    // Looking at usb-ff-bulk.c imports: #include <endian.h> is NOT there, but it uses htole32.
-    // gint/include/gint/usb.h includes <endian.h>. So we should be good if we include <gint/usb.h>.
-
-	header->version = htole32(0x00000100);
-	header->size = htole32(data_size);
-	header->transfer_size = htole32(2048);
-
-	strncpy(header->application, application, 16);
-	strncpy(header->type, type, 16);
-
-	return true;
-}
-
 // USB Test Data
 static usb_fxlink_header_t header_text;
 static usb_fxlink_header_t header_image;
