@@ -1,14 +1,62 @@
 #include <gint/display.h>
 #include <gint/keyboard.h>
+#include <gint/usb.h>
+#include <gint/usb-ff-bulk.h>
 #include <justui/jbutton.h>
 #include <justui/jlabel.h>
 #include <justui/jlayout.h>
 #include <justui/jscene.h>
 #include <justui/jwidget.h>
 #include <stdio.h>
+#include <string.h>
+
+// USB Interfaces
+static usb_interface_t const *interfaces[] = {&usb_ff_bulk, NULL};
+
+// Copied from gint/src/usb/classes/ff-bulk.c because it's not exposed
+static bool usb_fxlink_fill_header(usb_fxlink_header_t *header,
+	char const *application, char const *type, uint32_t data_size)
+{
+	if(strlen(application) > 16 || strlen(type) > 16) return false;
+
+	memset(header, 0, sizeof *header);
+	header->version = 0x00000100; // Little endian handled by compiler if needed, but for simplicity assuming LE system or manual swap if required.
+    // Actually gint assumes SH4/SH3 which is LE.
+    // If we want to be strictly correct we should use htole32 but it's not standard C.
+    // gint defines them in endian.h usually.
+    // Let's assume the platform is Little Endian for now as SH4 is.
+
+    // Correction: gint/include/gint/usb-ff-bulk.h includes <gint/config.h> and <gint/usb.h> which includes <endian.h>.
+    // But standard <endian.h> might not be available or might be <gint/defs/types.h> etc.
+    // Let's rely on gint's environment. `htole32` is likely available if we include <endian.h> or similar.
+    // Looking at usb-ff-bulk.c imports: #include <endian.h> is NOT there, but it uses htole32.
+    // gint/include/gint/usb.h includes <endian.h>. So we should be good if we include <gint/usb.h>.
+
+	header->version = htole32(0x00000100);
+	header->size = htole32(data_size);
+	header->transfer_size = htole32(2048);
+
+	strncpy(header->application, application, 16);
+	strncpy(header->type, type, 16);
+
+	return true;
+}
+
+// USB Test Data
+static usb_fxlink_header_t header_text;
+static usb_fxlink_header_t header_image;
+static char const *short_text = "Hello JustUI!";
 
 int main(void)
 {
+  // Prepare USB headers
+  usb_fxlink_fill_header(&header_text, "justui", "text", strlen(short_text));
+
+  // Correctly calculate VRAM size
+  // DWIDTH and DHEIGHT are from gint/display.h
+  int vram_size = DWIDTH * DHEIGHT * sizeof(color_t);
+  usb_fxlink_fill_header(&header_image, "justui", "image", vram_size);
+
   // Create the main scene (fullscreen)
   jscene *scene = jscene_create_fullscreen(NULL);
 
@@ -60,6 +108,42 @@ int main(void)
   jlabel_create("It automatically supports touch!", tab3);
   jlabel_create("Stack layouts make tabs easy.", tab3);
 
+  // ------------- TAB 4: USB -------------
+  jwidget *tab4 = jwidget_create(stack);
+  jlayout_set_vbox(tab4)->spacing = 2;
+  jwidget_set_padding(tab4, 5, 5, 5, 5);
+
+  jlabel *usb_status = jlabel_create("USB Status: Idle", tab4);
+
+  jwidget *usb_cols = jwidget_create(tab4);
+  jlayout_set_hbox(usb_cols)->spacing = 5;
+  jwidget_set_stretch(usb_cols, 1, 1, false);
+
+  jwidget *col1 = jwidget_create(usb_cols);
+  jlayout_set_vbox(col1)->spacing = 2;
+  jwidget_set_stretch(col1, 1, 1, false);
+
+  jwidget *col2 = jwidget_create(usb_cols);
+  jlayout_set_vbox(col2)->spacing = 2;
+  jwidget_set_stretch(col2, 1, 1, false);
+
+  // Column 1
+  jbutton *btn_u1 = jbutton_create("Open", col1);
+  jbutton *btn_u2 = jbutton_create("Open Wait", col1);
+  jbutton *btn_u3 = jbutton_create("Close", col1);
+  jbutton *btn_u4 = jbutton_create("WA TxtHead", col1);
+  jbutton *btn_u5 = jbutton_create("WA ImgHead", col1);
+  jbutton *btn_u6 = jbutton_create("WA Text", col1);
+  jbutton *btn_u7 = jbutton_create("WA VRAM", col1);
+
+  // Column 2
+  jbutton *btn_u8 = jbutton_create("WS TxtHead", col2);
+  jbutton *btn_u9 = jbutton_create("WS ImgHead", col2);
+  jbutton *btn_u10 = jbutton_create("WS Text", col2);
+  jbutton *btn_u11 = jbutton_create("WS VRAM", col2);
+  jbutton *btn_u12 = jbutton_create("Commit A", col2);
+  jbutton *btn_u13 = jbutton_create("Commit S", col2);
+
   // ==========================================
   // BOTTOM NAVIGATION BAR
   // ==========================================
@@ -71,13 +155,16 @@ int main(void)
   jwidget_set_padding(buttons, 8, 8, 8, 8);
 
   jbutton *b_tab1 = jbutton_create("Tab 1", buttons);
-  jwidget_set_padding(b_tab1, 12, 12, 12, 12);
+  jwidget_set_padding(b_tab1, 8, 8, 8, 8);
 
   jbutton *b_tab2 = jbutton_create("Tab 2", buttons);
-  jwidget_set_padding(b_tab2, 12, 12, 12, 12);
+  jwidget_set_padding(b_tab2, 8, 8, 8, 8);
 
   jbutton *b_tab3 = jbutton_create("Tab 3", buttons);
-  jwidget_set_padding(b_tab3, 12, 12, 12, 12);
+  jwidget_set_padding(b_tab3, 8, 8, 8, 8);
+
+  jbutton *b_tab4 = jbutton_create("USB", buttons);
+  jwidget_set_padding(b_tab4, 8, 8, 8, 8);
 
   // Spacer to push the exit button to the right side of the screen
   jwidget *spacer = jwidget_create(buttons);
@@ -85,7 +172,7 @@ int main(void)
 
   // Crucial: Exit button for touchscreen (ClassPad has no KEY_EXIT)
   jbutton *b_exit = jbutton_create("Exit", buttons);
-  jwidget_set_padding(b_exit, 12, 16, 12, 16);
+  jwidget_set_padding(b_exit, 8, 12, 8, 12);
 
   // ==========================================
   // INITIALIZATION
@@ -95,9 +182,11 @@ int main(void)
   jbutton_set_disabled(b_tab1, true);
   jbutton_set_disabled(b_tab2, false);
   jbutton_set_disabled(b_tab3, false);
+  jbutton_set_disabled(b_tab4, false);
 
   int action_count = 0;
   bool running = true;
+  static char status_buf[64];
 
   // ==========================================
   // EVENT LOOP
@@ -124,6 +213,7 @@ int main(void)
         jbutton_set_disabled(b_tab1, true);
         jbutton_set_disabled(b_tab2, false);
         jbutton_set_disabled(b_tab3, false);
+        jbutton_set_disabled(b_tab4, false);
       }
       else if (e.source == b_tab2)
       {
@@ -131,6 +221,7 @@ int main(void)
         jbutton_set_disabled(b_tab1, false);
         jbutton_set_disabled(b_tab2, true);
         jbutton_set_disabled(b_tab3, false);
+        jbutton_set_disabled(b_tab4, false);
       }
       else if (e.source == b_tab3)
       {
@@ -138,6 +229,15 @@ int main(void)
         jbutton_set_disabled(b_tab1, false);
         jbutton_set_disabled(b_tab2, false);
         jbutton_set_disabled(b_tab3, true);
+        jbutton_set_disabled(b_tab4, false);
+      }
+      else if (e.source == b_tab4)
+      {
+        jscene_show_and_focus(scene, tab4);
+        jbutton_set_disabled(b_tab1, false);
+        jbutton_set_disabled(b_tab2, false);
+        jbutton_set_disabled(b_tab3, false);
+        jbutton_set_disabled(b_tab4, true);
       }
       else if (e.source == btn_action)
       {
@@ -147,6 +247,69 @@ int main(void)
         static char buf[64];
         sprintf(buf, "Clicked %d times!", action_count);
         jlabel_set_text(t2_status, buf);
+      }
+      // USB Handlers
+      else if (e.source == btn_u1) { // Open
+          int rc = usb_open(interfaces, GINT_CALL_NULL);
+          sprintf(status_buf, "usb_open: %d", rc);
+          jlabel_set_text(usb_status, status_buf);
+      }
+      else if (e.source == btn_u2) { // Open Wait
+          usb_open_wait();
+          jlabel_set_text(usb_status, "usb_open_wait: done");
+      }
+      else if (e.source == btn_u3) { // Close
+          usb_close();
+          jlabel_set_text(usb_status, "usb_close: done");
+      }
+      else if (e.source == btn_u4) { // WA TxtHead
+          int rc = usb_write_async(usb_ff_bulk_output(), &header_text, sizeof(header_text), false, GINT_CALL_NULL);
+          sprintf(status_buf, "WA TxtHead: %d", rc);
+          jlabel_set_text(usb_status, status_buf);
+      }
+      else if (e.source == btn_u5) { // WA ImgHead
+          int rc = usb_write_async(usb_ff_bulk_output(), &header_image, sizeof(header_image), false, GINT_CALL_NULL);
+          sprintf(status_buf, "WA ImgHead: %d", rc);
+          jlabel_set_text(usb_status, status_buf);
+      }
+      else if (e.source == btn_u6) { // WA Text
+          int rc = usb_write_async(usb_ff_bulk_output(), short_text, strlen(short_text), false, GINT_CALL_NULL);
+          sprintf(status_buf, "WA Text: %d", rc);
+          jlabel_set_text(usb_status, status_buf);
+      }
+      else if (e.source == btn_u7) { // WA VRAM
+          int rc = usb_write_async(usb_ff_bulk_output(), gint_vram, vram_size, false, GINT_CALL_NULL);
+          sprintf(status_buf, "WA VRAM: %d", rc);
+          jlabel_set_text(usb_status, status_buf);
+      }
+      else if (e.source == btn_u8) { // WS TxtHead
+          int rc = usb_write_sync(usb_ff_bulk_output(), &header_text, sizeof(header_text), false);
+          sprintf(status_buf, "WS TxtHead: %d", rc);
+          jlabel_set_text(usb_status, status_buf);
+      }
+      else if (e.source == btn_u9) { // WS ImgHead
+          int rc = usb_write_sync(usb_ff_bulk_output(), &header_image, sizeof(header_image), false);
+          sprintf(status_buf, "WS ImgHead: %d", rc);
+          jlabel_set_text(usb_status, status_buf);
+      }
+      else if (e.source == btn_u10) { // WS Text
+          int rc = usb_write_sync(usb_ff_bulk_output(), short_text, strlen(short_text), false);
+          sprintf(status_buf, "WS Text: %d", rc);
+          jlabel_set_text(usb_status, status_buf);
+      }
+      else if (e.source == btn_u11) { // WS VRAM
+          int rc = usb_write_sync(usb_ff_bulk_output(), gint_vram, vram_size, false);
+          sprintf(status_buf, "WS VRAM: %d", rc);
+          jlabel_set_text(usb_status, status_buf);
+      }
+      else if (e.source == btn_u12) { // Commit A
+          int rc = usb_commit_async(usb_ff_bulk_output(), GINT_CALL_NULL);
+          sprintf(status_buf, "Commit A: %d", rc);
+          jlabel_set_text(usb_status, status_buf);
+      }
+      else if (e.source == btn_u13) { // Commit S
+          usb_commit_sync(usb_ff_bulk_output());
+          jlabel_set_text(usb_status, "Commit S: done");
       }
     }
     else if (e.type == JWIDGET_KEY && e.key.type == KEYEV_DOWN)
