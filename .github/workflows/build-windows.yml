@@ -1,0 +1,63 @@
+name: Build fxlink for Windows
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          git
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-ninja
+          mingw-w64-x86_64-pkg-config
+          mingw-w64-x86_64-libusb
+          mingw-w64-x86_64-libpng
+          mingw-w64-x86_64-ncurses
+          mingw-w64-x86_64-zlib
+
+    - name: Configure CMake
+      run: |
+        cd fxsdk
+        cmake -B build -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DFXLINK_DISABLE_UDISKS2=ON \
+          -DFXLINK_DISABLE_SDL2=ON \
+          -DCMAKE_INSTALL_PREFIX=install
+
+    - name: Build
+      run: |
+        cd fxsdk
+        cmake --build build
+
+    - name: Install (to gather artifacts)
+      run: |
+        cd fxsdk
+        cmake --install build
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: fxlink-windows
+        path: |
+          fxsdk/build/fxlink.exe
+          fxsdk/build/libfxlink.a
+          fxsdk/build/libfxlink/libfxlink.a
