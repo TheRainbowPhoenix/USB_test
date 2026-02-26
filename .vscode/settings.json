@@ -1,0 +1,7 @@
+{
+  "clangd.arguments": [
+    "--query-driver=/home/dev/.local/bin/sh-elf-gcc"
+  ],
+  "C_Cpp.default.configurationProvider": "fx-CP400",
+  "cmake.buildDirectory": "${workspaceFolder}/build-cp"
+}

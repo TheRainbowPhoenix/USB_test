@@ -1,0 +1,32 @@
+name: Build (fx-cp)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # Run all steps inside your GHCR image
+    container:
+      image: ghcr.io/therainbowphoenix/gint-docker:main
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Build (fxsdk build-cp)
+        run: |
+          fxsdk build-cp
+
+      - name: Upload MyAddin.hh3
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyAddin.hh3
+          path: MyAddin.hh3
+          if-no-files-found: error
+          retention-days: 14
