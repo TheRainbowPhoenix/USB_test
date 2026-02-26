@@ -34,32 +34,73 @@ jobs:
           mingw-w64-x86_64-ncurses
           mingw-w64-x86_64-zlib
 
-    - name: Configure CMake
+    - name: Configure CMake (Static)
       run: |
         cd fxsdk
-        cmake -B build -G Ninja \
+        cmake -B build-static -G Ninja \
           -DCMAKE_BUILD_TYPE=Release \
           -DFXLINK_DISABLE_UDISKS2=ON \
           -DFXLINK_DISABLE_SDL2=ON \
           -DFXLINK_DISABLE_POLL=ON \
           -DFXLINK_DISABLE_ANSIESC=ON \
-          -DCMAKE_INSTALL_PREFIX=install
+          -DCMAKE_INSTALL_PREFIX=install-static
 
-    - name: Build
+    - name: Build (Static)
       run: |
         cd fxsdk
-        cmake --build build
+        cmake --build build-static
 
-    - name: Install (to gather artifacts)
+    - name: Configure CMake (Shared)
       run: |
         cd fxsdk
-        cmake --install build
+        # Patch CMakeLists.txt to allow building shared library
+        sed -i 's/add_library(libfxlink STATIC/add_library(libfxlink/g' CMakeLists.txt
+        cmake -B build-shared -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_SHARED_LIBS=ON \
+          -DFXLINK_DISABLE_UDISKS2=ON \
+          -DFXLINK_DISABLE_SDL2=ON \
+          -DFXLINK_DISABLE_POLL=ON \
+          -DFXLINK_DISABLE_ANSIESC=ON \
+          -DCMAKE_INSTALL_PREFIX=install-shared
+
+    - name: Build (Shared)
+      run: |
+        cd fxsdk
+        cmake --build build-shared
+        cmake --install build-shared
+
+    - name: Gather Artifacts
+      run: |
+        mkdir -p dist
+        # Copy Executable (Static build usually produces exe that still needs DLLs on Windows unless -static flag used, but standard CMake build often dynamic links deps)
+        # Actually standard build links against shared libs installed in system.
+        cp fxsdk/build-static/fxlink.exe dist/
+
+        # Copy Static Lib
+        cp fxsdk/build-static/libfxlink.a dist/
+
+        # Copy Shared Lib (DLL and import lib)
+        cp fxsdk/build-shared/libfxlink.dll dist/
+        cp fxsdk/build-shared/libfxlink.dll.a dist/
+
+        # Copy Headers
+        mkdir -p dist/include
+        cp -r fxsdk/install-shared/include/* dist/include/
+
+        # Copy Dependencies DLLs
+        # Using ldd or just copying known ones.
+        # libusb-1.0.dll, libpng16-16.dll, libncursesw6.dll, zlib1.dll
+        # Also libgcc_s_seh-1.dll, libwinpthread-1.dll usually needed for MinGW apps
+        cp /mingw64/bin/libusb-1.0.dll dist/
+        cp /mingw64/bin/libpng16-16.dll dist/
+        cp /mingw64/bin/libncursesw6.dll dist/
+        cp /mingw64/bin/zlib1.dll dist/
+        cp /mingw64/bin/libgcc_s_seh-1.dll dist/
+        cp /mingw64/bin/libwinpthread-1.dll dist/
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: fxlink-windows
-        path: |
-          fxsdk/build/fxlink.exe
-          fxsdk/build/libfxlink.a
-          fxsdk/build/libfxlink/libfxlink.a
+        path: dist/
