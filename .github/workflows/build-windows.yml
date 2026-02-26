@@ -86,7 +86,8 @@ jobs:
 
         # Copy Headers
         mkdir -p dist/include
-        cp -r fxsdk/install-shared/include/* dist/include/
+        # Fix: Headers are installed under x86_64-w64-mingw32/include on Windows build
+        cp -r fxsdk/install-shared/x86_64-w64-mingw32/include/* dist/include/
 
         # Copy Dependencies DLLs
         # Using ldd or just copying known ones.
