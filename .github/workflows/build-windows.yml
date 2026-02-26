@@ -41,6 +41,8 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release \
           -DFXLINK_DISABLE_UDISKS2=ON \
           -DFXLINK_DISABLE_SDL2=ON \
+          -DFXLINK_DISABLE_POLL=ON \
+          -DFXLINK_DISABLE_ANSIESC=ON \
           -DCMAKE_INSTALL_PREFIX=install
 
     - name: Build
