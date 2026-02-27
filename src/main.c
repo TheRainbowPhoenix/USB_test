@@ -17,6 +17,7 @@ static usb_interface_t const *interfaces[] = {&usb_ff_bulk, NULL};
 static usb_fxlink_header_t header_text;
 static usb_fxlink_header_t header_image;
 static char const *short_text = "Hello JustUI!";
+static char read_buffer[256]; // Buffer for receiving data
 
 int main(void)
 {
@@ -87,33 +88,43 @@ int main(void)
   jlabel *usb_status = jlabel_create("USB Status: Idle", tab4);
 
   jwidget *usb_cols = jwidget_create(tab4);
-  jlayout_set_hbox(usb_cols)->spacing = 5;
+  jlayout_set_hbox(usb_cols)->spacing = 10; // Increased spacing for width padding
   jwidget_set_stretch(usb_cols, 1, 1, false);
 
   jwidget *col1 = jwidget_create(usb_cols);
-  jlayout_set_vbox(col1)->spacing = 2;
+  jlayout_set_vbox(col1)->spacing = 5; // Increased spacing for height
   jwidget_set_stretch(col1, 1, 1, false);
 
   jwidget *col2 = jwidget_create(usb_cols);
-  jlayout_set_vbox(col2)->spacing = 2;
+  jlayout_set_vbox(col2)->spacing = 5; // Increased spacing for height
   jwidget_set_stretch(col2, 1, 1, false);
 
+  // Helper to create taller buttons (1.5x height approx by padding)
+  // Standard padding was implicit or small. Let's make it larger.
+  void style_usb_btn(jbutton *b) {
+      // Top/Bottom 12 -> ~1.5x usual height feel?
+      // Left/Right 5 -> just fit
+      jwidget_set_padding(b, 12, 5, 12, 5);
+  }
+
   // Column 1
-  jbutton *btn_u1 = jbutton_create("Open", col1);
-  jbutton *btn_u2 = jbutton_create("Open Wait", col1);
-  jbutton *btn_u3 = jbutton_create("Close", col1);
-  jbutton *btn_u4 = jbutton_create("WA TxtHead", col1);
-  jbutton *btn_u5 = jbutton_create("WA ImgHead", col1);
-  jbutton *btn_u6 = jbutton_create("WA Text", col1);
-  jbutton *btn_u7 = jbutton_create("WA VRAM", col1);
+  jbutton *btn_u1 = jbutton_create("Open", col1); style_usb_btn(btn_u1);
+  jbutton *btn_u2 = jbutton_create("Open Wait", col1); style_usb_btn(btn_u2);
+  jbutton *btn_u3 = jbutton_create("Close", col1); style_usb_btn(btn_u3);
+  jbutton *btn_u4 = jbutton_create("WA TxtHead", col1); style_usb_btn(btn_u4);
+  jbutton *btn_u5 = jbutton_create("WA ImgHead", col1); style_usb_btn(btn_u5);
+  jbutton *btn_u6 = jbutton_create("WA Text", col1); style_usb_btn(btn_u6);
+  jbutton *btn_u7 = jbutton_create("WA VRAM", col1); style_usb_btn(btn_u7);
+  jbutton *btn_u14 = jbutton_create("Read Async", col1); style_usb_btn(btn_u14);
 
   // Column 2
-  jbutton *btn_u8 = jbutton_create("WS TxtHead", col2);
-  jbutton *btn_u9 = jbutton_create("WS ImgHead", col2);
-  jbutton *btn_u10 = jbutton_create("WS Text", col2);
-  jbutton *btn_u11 = jbutton_create("WS VRAM", col2);
-  jbutton *btn_u12 = jbutton_create("Commit A", col2);
-  jbutton *btn_u13 = jbutton_create("Commit S", col2);
+  jbutton *btn_u8 = jbutton_create("WS TxtHead", col2); style_usb_btn(btn_u8);
+  jbutton *btn_u9 = jbutton_create("WS ImgHead", col2); style_usb_btn(btn_u9);
+  jbutton *btn_u10 = jbutton_create("WS Text", col2); style_usb_btn(btn_u10);
+  jbutton *btn_u11 = jbutton_create("WS VRAM", col2); style_usb_btn(btn_u11);
+  jbutton *btn_u12 = jbutton_create("Commit A", col2); style_usb_btn(btn_u12);
+  jbutton *btn_u13 = jbutton_create("Commit S", col2); style_usb_btn(btn_u13);
+  jbutton *btn_u15 = jbutton_create("Read Sync", col2); style_usb_btn(btn_u15);
 
   // ==========================================
   // BOTTOM NAVIGATION BAR
@@ -281,6 +292,29 @@ int main(void)
       else if (e.source == btn_u13) { // Commit S
           usb_commit_sync(usb_ff_bulk_output());
           jlabel_set_text(usb_status, "Commit S: done");
+      }
+      else if (e.source == btn_u14) { // Read Async
+          // Read up to 64 bytes
+          int rc = usb_read_async(usb_ff_bulk_input(), read_buffer, 64, USB_READ_IGNORE_ZEROS, NULL, NULL, GINT_CALL_NULL);
+          sprintf(status_buf, "Read A started: %d", rc);
+          jlabel_set_text(usb_status, status_buf);
+      }
+      else if (e.source == btn_u15) { // Read Sync
+          // Read up to 64 bytes (blocking)
+          memset(read_buffer, 0, 64);
+          int rc = usb_read_sync(usb_ff_bulk_input(), read_buffer, 64, false);
+          if (rc > 0) {
+              // Ensure null termination for display if it's text
+              read_buffer[rc < 64 ? rc : 63] = 0;
+              // Try to display first few chars
+              char disp[32];
+              strncpy(disp, read_buffer, 30);
+              disp[30] = 0;
+              sprintf(status_buf, "Read %d: %s", rc, disp);
+          } else {
+              sprintf(status_buf, "Read Sync err: %d", rc);
+          }
+          jlabel_set_text(usb_status, status_buf);
       }
     }
     else if (e.type == JWIDGET_KEY && e.key.type == KEYEV_DOWN)

@@ -23,14 +23,11 @@ To list connected devices:
 fxlink.exe -l
 ```
 
-To start listening for data (Interactive Mode):
-```cmd
-fxlink.exe -i
-```
-Or for TUI mode (better visualization):
+To start listening for data and sending commands (Interactive TUI Mode):
 ```cmd
 fxlink.exe -t
 ```
+*Note: TUI mode allows you to see incoming messages and type commands to send.*
 
 ### 3. Running the Test on Calculator
 1.  Transfer the compiled `.g1a` or `.g3a` add-in to your calculator.
@@ -40,7 +37,7 @@ fxlink.exe -t
 
 ### 4. Performing Tests
 
-#### Text Transfer Test
+#### Sending Data (Calculator -> PC)
 1.  On the calculator, press **WA TxtHead** (sends "text" header).
 2.  Press **WA Text** (sends "Hello JustUI!").
 3.  Press **Commit A** (commits the transfer asynchronously).
@@ -52,9 +49,19 @@ fxlink.exe -t
 3.  Press **Commit A**.
 4.  `fxlink` should detect the image data and likely save it as a PNG file in the current directory or display it.
 
+#### Receiving Data (PC -> Calculator)
+1.  On the PC, in `fxlink -t` mode, type a command that sends data. For simple text testing, you can try using the echo command which sends a packet back to the calc:
+    ```
+    /echo HelloCalc
+    ```
+2.  On the calculator, press **Read Sync** (or **Read Async**).
+3.  The status label on the calculator should update to show the received data (e.g., "Read X: ...").
+    *Note: The raw read will likely capture the `fxlink` header first. You might need to press Read multiple times or parse the protocol to see the payload "HelloCalc".*
+
 #### Synchronous Mode
-You can repeat the above tests using the **WS** (Write Sync) buttons (`WS TxtHead`, `WS Text`, `Commit S`). The behavior should be identical, but the calculator UI might freeze briefly during transfer (blocking call).
+You can repeat the write tests using the **WS** (Write Sync) buttons (`WS TxtHead`, `WS Text`, `Commit S`). The behavior should be identical, but the calculator UI might freeze briefly during transfer (blocking call).
 
 ### 5. Troubleshooting
 - **Missing DLLs**: Ensure all `.dll` files included in the artifact zip are in the same folder as `fxlink.exe`.
 - **Device not found**: Check device manager and Zadig to ensure `WinUSB` driver is loaded. Re-plug the calculator.
+- **-p flag fails**: The `-p` flag is for the official "Add-In Push" application protocol. This demo uses the `gint` bulk transfer protocol, so standard `-p` will not work. Use `-t` (interactive) to communicate.
