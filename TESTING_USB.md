@@ -12,45 +12,60 @@ This project serves as a template for JustUI-based add-ins on Casio calculators 
 To test the USB functionality, you need the `fxlink` tool running on your Windows PC.
 
 ### 1. Prerequisites
-- **fxlink.exe**: Download the latest build from the [GitHub Actions artifacts](https://github.com/TheRainbowPhoenix/USB_test/actions). Extract the zip file.
+- **Artifacts**: Download the latest build from the [GitHub Actions artifacts](https://github.com/TheRainbowPhoenix/USB_test/actions). Extract the zip file. This contains `fxlink.exe`, `libfxlink.dll`, and necessary DLLs (`libusb-1.0.dll`, etc.).
 - **Drivers**: Ensure you have `libusb` compatible drivers installed for your calculator. You can use [Zadig](https://zadig.akeo.ie/) to install `WinUSB` driver for the calculator device when connected.
 
-### 2. Running fxlink
-Open a command prompt (cmd or PowerShell) in the folder where you extracted `fxlink.exe`.
+### 2. Running fxlink (CLI)
+Open a command prompt (cmd or PowerShell) in the folder where you extracted the artifacts.
 
 To list connected devices:
 ```cmd
 fxlink.exe -l
 ```
 
-To start listening for data and sending commands (Interactive TUI Mode):
+To start listening for data (Interactive Mode):
+```cmd
+fxlink.exe -i
+```
+Or for TUI mode (better visualization):
 ```cmd
 fxlink.exe -t
 ```
-*Note: TUI mode allows you to see incoming messages and type commands to send.*
+*Note: If `fxlink.exe -t` or `-i` crashes or fails on Windows (common issue with TUI/Console handling), use the Python script method below.*
 
-### 3. Running the Test on Calculator
+### 3. Running fxlink (Python Script)
+If the CLI tool issues occur, you can use the provided Python script `fxlink_py.py` to interact with the calculator using `libfxlink.dll`.
+
+1. Ensure you have Python installed.
+2. Place `fxlink_py.py` in the same folder as the extracted artifacts (`libfxlink.dll`, `libusb-1.0.dll`, etc.).
+3. Run the script:
+   ```cmd
+   python fxlink_py.py
+   ```
+4. The script will wait for a calculator connection. Once connected, it will print received messages and allow sending commands.
+
+### 4. Running the Test on Calculator
 1.  Transfer the compiled `.g1a` or `.g3a` add-in to your calculator.
 2.  Launch the add-in.
 3.  Navigate to the **USB** tab (Tab 4) using the bottom navigation bar.
 4.  Press **Open** or **Open Wait** to initialize the USB connection. You should see the calculator detected in `fxlink`.
 
-### 4. Performing Tests
+### 5. Performing Tests
 
 #### Sending Data (Calculator -> PC)
 1.  On the calculator, press **WA TxtHead** (sends "text" header).
 2.  Press **WA Text** (sends "Hello JustUI!").
 3.  Press **Commit A** (commits the transfer asynchronously).
-4.  Check `fxlink` output. You should see "Hello JustUI!".
+4.  Check `fxlink` (or python script) output. You should see "Hello JustUI!".
 
 #### Screenshot/VRAM Test
 1.  On the calculator, press **WA ImgHead** (sends "image" header with VRAM size).
 2.  Press **WA VRAM** (sends the raw VRAM buffer).
 3.  Press **Commit A**.
-4.  `fxlink` should detect the image data and likely save it as a PNG file in the current directory or display it.
+4.  `fxlink` should detect the image data. The Python script will report "Image received".
 
 #### Receiving Data (PC -> Calculator)
-1.  On the PC, in `fxlink -t` mode, type a command that sends data. For simple text testing, you can try using the echo command which sends a packet back to the calc:
+1.  On the PC (in `fxlink -t` or `python fxlink_py.py`), type a command:
     ```
     /echo HelloCalc
     ```
@@ -58,10 +73,6 @@ fxlink.exe -t
 3.  The status label on the calculator should update to show the received data (e.g., "Read X: ...").
     *Note: The raw read will likely capture the `fxlink` header first. You might need to press Read multiple times or parse the protocol to see the payload "HelloCalc".*
 
-#### Synchronous Mode
-You can repeat the write tests using the **WS** (Write Sync) buttons (`WS TxtHead`, `WS Text`, `Commit S`). The behavior should be identical, but the calculator UI might freeze briefly during transfer (blocking call).
-
-### 5. Troubleshooting
-- **Missing DLLs**: Ensure all `.dll` files included in the artifact zip are in the same folder as `fxlink.exe`.
+### 6. Troubleshooting
+- **Missing DLLs**: Ensure all `.dll` files included in the artifact zip are in the same folder as `fxlink.exe` / `fxlink_py.py`.
 - **Device not found**: Check device manager and Zadig to ensure `WinUSB` driver is loaded. Re-plug the calculator.
-- **-p flag fails**: The `-p` flag is for the official "Add-In Push" application protocol. This demo uses the `gint` bulk transfer protocol, so standard `-p` will not work. Use `-t` (interactive) to communicate.
