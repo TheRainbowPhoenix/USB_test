@@ -193,8 +193,8 @@ jobs:
         #endif
         EOF
 
-        # 2. Patch fxlink.h
-        sed -i 's/int main_tui_interactive(libusb_context \*ctx);/int main_tui_interactive(libusb_context \*ctx);\nint main_win32_interactive(libusb_context \*ctx);/g' fxlink/fxlink.h
+        # 2. Patch fxlink.h by appending
+        echo "int main_win32_interactive(libusb_context *context);" >> fxlink/fxlink.h
 
         # 3. Patch main.c
         # Replace the `else if(mode == 't') {` block
