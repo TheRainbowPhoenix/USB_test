@@ -1,0 +1,156 @@
+name: Build fxlink for Windows
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          git
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-ninja
+          mingw-w64-x86_64-pkg-config
+          mingw-w64-x86_64-libusb
+          mingw-w64-x86_64-libpng
+          mingw-w64-x86_64-ncurses
+          mingw-w64-x86_64-zlib
+
+    - name: Apply Win32 UI Modifications
+      run: |
+        # 1. Copy win32_ui.c to fxsdk
+        cp win32_ui.c fxsdk/fxlink/modes/win32_ui.c
+
+        cd fxsdk
+
+        # 2. Patch fxlink.h by appending
+        echo "int main_win32_interactive(libusb_context *context);" >> fxlink/fxlink.h
+
+        # 3. Patch main.c
+        # Replace the `else if(mode == 't') {` block
+        awk '
+        /else if\(mode == '\'t\''\) \{/ {
+            print "	else if(mode == '\'t\'') {"
+            print "#ifdef _WIN32"
+            print "		rc = main_win32_interactive(context);"
+            print "#else"
+            print "#ifndef FXLINK_DISABLE_POLL"
+            print "		rc = main_tui_interactive(context);"
+            print "#endif"
+            print "#endif"
+            skip = 1
+            next
+        }
+        skip && /}/ {
+            print "	}"
+            skip = 0
+            next
+        }
+        skip { next }
+        { print }
+        ' fxlink/main.c > fxlink/main.c.tmp
+        mv fxlink/main.c.tmp fxlink/main.c
+
+        # 4. Patch CMakeLists.txt to conditionally compile win32_ui.c and link user32/gdi32
+        awk '
+        /fxlink\/tui\/tui-interactive.c/ {
+            print "  fxlink/tui/tui-interactive.c)"
+            print "if(WIN32)"
+            print "  target_sources(fxlink PRIVATE fxlink/modes/win32_ui.c)"
+            print "  target_link_libraries(fxlink user32 gdi32 comdlg32)"
+            print "endif()"
+            next
+        }
+        { print }
+        ' CMakeLists.txt > CMakeLists.txt.tmp
+        mv CMakeLists.txt.tmp CMakeLists.txt
+
+    - name: Configure CMake (Static)
+      run: |
+        cd fxsdk
+        cmake -B build-static -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DFXLINK_DISABLE_UDISKS2=ON \
+          -DFXLINK_DISABLE_SDL2=ON \
+          -DFXLINK_DISABLE_POLL=ON \
+          -DFXLINK_DISABLE_ANSIESC=OFF \
+          -DCMAKE_INSTALL_PREFIX=install-static
+
+    - name: Build (Static)
+      run: |
+        cd fxsdk
+        cmake --build build-static
+
+    - name: Configure CMake (Shared)
+      run: |
+        cd fxsdk
+        # Patch CMakeLists.txt to allow building shared library
+        sed -i 's/add_library(libfxlink STATIC/add_library(libfxlink/g' CMakeLists.txt
+        cmake -B build-shared -G Ninja \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_SHARED_LIBS=ON \
+          -DFXLINK_DISABLE_UDISKS2=ON \
+          -DFXLINK_DISABLE_SDL2=ON \
+          -DFXLINK_DISABLE_POLL=ON \
+          -DFXLINK_DISABLE_ANSIESC=OFF \
+          -DCMAKE_INSTALL_PREFIX=install-shared
+
+    - name: Build (Shared)
+      run: |
+        cd fxsdk
+        cmake --build build-shared
+        cmake --install build-shared
+
+    - name: Gather Artifacts
+      run: |
+        mkdir -p dist
+        # Copy Executable (Static build usually produces exe that still needs DLLs on Windows unless -static flag used, but standard CMake build often dynamic links deps)
+        # Actually standard build links against shared libs installed in system.
+        cp fxsdk/build-static/fxlink.exe dist/
+
+        # Copy Static Lib
+        cp fxsdk/build-static/libfxlink.a dist/
+
+        # Copy Shared Lib (DLL and import lib)
+        cp fxsdk/build-shared/libfxlink.dll dist/
+        cp fxsdk/build-shared/libfxlink.dll.a dist/
+
+        # Copy Headers
+        mkdir -p dist/include
+        # Fix: Headers are installed under x86_64-w64-mingw32/include on Windows build
+        cp -r fxsdk/install-shared/x86_64-w64-mingw32/include/* dist/include/
+
+        # Copy Dependencies DLLs
+        # Using ldd or just copying known ones.
+        # libusb-1.0.dll, libpng16-16.dll, libncursesw6.dll, zlib1.dll
+        # Also libgcc_s_seh-1.dll, libwinpthread-1.dll usually needed for MinGW apps
+        cp /mingw64/bin/libusb-1.0.dll dist/
+        cp /mingw64/bin/libpng16-16.dll dist/
+        cp /mingw64/bin/libncursesw6.dll dist/
+        cp /mingw64/bin/zlib1.dll dist/
+        cp /mingw64/bin/libgcc_s_seh-1.dll dist/
+        cp /mingw64/bin/libwinpthread-1.dll dist/
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: fxlink-windows
+        path: dist/

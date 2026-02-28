@@ -1,0 +1,3 @@
+[submodule "fxsdk"]
+	path = fxsdk
+	url = https://github.com/TheRainbowPhoenix/fxsdk
