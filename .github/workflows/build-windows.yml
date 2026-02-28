@@ -34,6 +34,11 @@ jobs:
           mingw-w64-x86_64-ncurses
           mingw-w64-x86_64-zlib
 
+    - name: Apply Win32 UI Patch
+      run: |
+        cd fxsdk
+        git apply ../fxlink-win32-ui.patch
+
     - name: Configure CMake (Static)
       run: |
         cd fxsdk
