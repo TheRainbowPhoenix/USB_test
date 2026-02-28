@@ -42,7 +42,7 @@ jobs:
           -DFXLINK_DISABLE_UDISKS2=ON \
           -DFXLINK_DISABLE_SDL2=ON \
           -DFXLINK_DISABLE_POLL=ON \
-          -DFXLINK_DISABLE_ANSIESC=ON \
+          -DFXLINK_DISABLE_ANSIESC=OFF \
           -DCMAKE_INSTALL_PREFIX=install-static
 
     - name: Build (Static)
@@ -61,7 +61,7 @@ jobs:
           -DFXLINK_DISABLE_UDISKS2=ON \
           -DFXLINK_DISABLE_SDL2=ON \
           -DFXLINK_DISABLE_POLL=ON \
-          -DFXLINK_DISABLE_ANSIESC=ON \
+          -DFXLINK_DISABLE_ANSIESC=OFF \
           -DCMAKE_INSTALL_PREFIX=install-shared
 
     - name: Build (Shared)
