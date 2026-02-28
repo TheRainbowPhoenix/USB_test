@@ -144,7 +144,7 @@ jobs:
                     return 0;
                 }
                 case WM_COMMAND: {
-                    if (LOWORD(wParam) == 3 || (LOWORD(wParam) == 2 && HIORD(wParam) == EN_MAXTEXT)) {
+                    if (LOWORD(wParam) == 3 || (LOWORD(wParam) == 2 && HIWORD(wParam) == EN_MAXTEXT)) {
                         if (LOWORD(wParam) == 3) {
                             char buf[256];
                             GetWindowTextA(hEdit, buf, 256);
