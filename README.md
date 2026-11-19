@@ -1,31 +1,54 @@
-# JustUI Template Add-in
+# ClassPad RAM dumper (32 MiB)
 
-This folder acts as a base template to jumpstart your JustUI-based projects on the fx-CG50 or ClassPad II. It serves as both a demo of its major features and a foundation text for your custom add-ins.
+JustUI progress screen and fxlink USB bulk transfer for **ClassPad II** (fx-CP).
+Reads the fixed virtual range **0x88000000–0x89FFFFFF** into a 32 MiB PC file.
+This is a read-only diagnostic, NOT a probe of physical installed RAM. If
+any address is not readable on your ClassPad, a CPU exception can reset/crash
+the add-in. Close apps and save your work before trying it.
 
-## Features Included
-- **Fullscreen Layout**: Pre-configured `jscene_create_fullscreen` layout with touch compatibility padding.
-- **Tab Component**: A three-tab setup built with `jlayout_set_stack`.
-  - Tab 1: Simple UI text (`jlabel_create`).
-  - Tab 2: Interactive elements (`jbutton_create` that increments a global counter).
-  - Tab 3: About text (`jlabel_create`).
-- **Navigation Bar**: Tab-switching interface pinned at the bottom with horizontal layout (`jlayout_set_hbox`). Includes an integrated Exit button!
+## Build the ClassPad app
 
-## Starting Development
-Use this base template as a boilerplate! Simply edit the code inside `src/main.c` where everything is set up.
+Use the existing fxSDK/gint/JustUI toolchain (or the repository's GitHub
+Actions CI workflow):
 
-Build it with :
-```
-fxsdk build-cp
-```
+    fxsdk build-cp
 
-### CMake Notice
-This template's `CMakeLists.txt` is already linked optimally with JustUI.
-For reference, it uses:
-```cmake
-find_package(JustUI 1.0 REQUIRED)
-target_link_libraries(myaddin Gint::Gint JustUI::JustUI)
-```
+Install `MyAddin.hh3` on the ClassPad and launch it. Tap **Start dump**.
+Connect the USB cable, then start the Windows program. The JustUI display
+updates once per 512 KiB message (64 messages).
 
-Have fun coding your first JustUI project!
+## Windows receiver
 
+Download the Windows host artifact from the EXWord-Explorer repository's
+GitHub Actions (includes `libfxlink.dll` and `libusb-1.0.dll`). Put the
+two 64-bit DLLs next to `host/receiver.py`; install 64-bit Python 3.10+
+and ensure the fxlink USB interface is bound to WinUSB (eg via Zadig).
 
+In PowerShell:
+
+    py -3 host/receiver.py ram_88000000.bin
+
+The receiver sends a `ramdump:start` request, waits for exactly 64
+`ramdump:data` messages, checks offsets/lengths, and saves a
+32 MiB binary. Interrupted dumps retain a `.partial` file.
+
+## Wire protocol
+
+* Host -> ClassPad: fxlink application `ramdump`, type `start`,
+  4-byte ASCII payload `GO32`.
+* ClassPad -> host: application `ramdump`, type `data`, body:
+  `u32 little-endian offset`, `u32 little-endian size`,
+  `size` raw bytes, with size = 524288.
+* Logical message size is 524296 bytes; gint writes it in 2048-byte slices.
+  This **does not** mean USB hardware packets are 512 KiB.
+* At most 2 KiB sent at a time by the firmware; no 512 KiB firmware buffer.
+
+## Known limitations
+
+Not hardware-tested. The fixed address range is assumed readable, and a
+fault cannot be recovered by this add-in. fxlink host and gint USB drivers
+must accept 512 KiB logical messages; some builds may impose smaller
+message limits. Try lowering `MESSAGE_SIZE` in firmware and the
+`CHUNK` constant in the receiver if this fails, keeping both equal and
+dividing 32 MiB exactly. The display is refreshed only between messages,
+not continuously inside the current 512 KiB transfer.
