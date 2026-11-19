@@ -1,31 +1,44 @@
-# JustUI Template Add-in
+# ClassPad RAM dumper — host-selected range
 
-This folder acts as a base template to jumpstart your JustUI-based projects on the fx-CG50 or ClassPad II. It serves as both a demo of its major features and a foundation text for your custom add-ins.
+JustUI progress and fxlink USB on ClassPad II. Windows selects inclusive
+start/end addresses. Default: 0x8C000000 through 0x8CFFFFFF (16 MiB).
 
-## Features Included
-- **Fullscreen Layout**: Pre-configured `jscene_create_fullscreen` layout with touch compatibility padding.
-- **Tab Component**: A three-tab setup built with `jlayout_set_stack`.
-  - Tab 1: Simple UI text (`jlabel_create`).
-  - Tab 2: Interactive elements (`jbutton_create` that increments a global counter).
-  - Tab 3: About text (`jlabel_create`).
-- **Navigation Bar**: Tab-switching interface pinned at the bottom with horizontal layout (`jlayout_set_hbox`). Includes an integrated Exit button!
+## Build
 
-## Starting Development
-Use this base template as a boilerplate! Simply edit the code inside `src/main.c` where everything is set up.
+Use the fxSDK/gint/JustUI environment or this repository's GitHub Actions:
 
-Build it with :
-```
-fxsdk build-cp
-```
+    fxsdk build-cp
 
-### CMake Notice
-This template's `CMakeLists.txt` is already linked optimally with JustUI.
-For reference, it uses:
-```cmake
-find_package(JustUI 1.0 REQUIRED)
-target_link_libraries(myaddin Gint::Gint JustUI::JustUI)
-```
+Install MyAddin.hh3, launch it, tap Start dump, and connect USB.
 
-Have fun coding your first JustUI project!
+## Windows
 
+Put libfxlink.dll and libusb-1.0.dll from EXWord-Explorer's Windows
+host GitHub Actions artifact beside host/receiver.py. Use 64-bit Python
+3.10+ and WinUSB for the fxlink interface.
 
+    py -3 host/receiver.py
+
+or with explicit inclusive addresses:
+
+    py -3 host/receiver.py --from 0x8C000000 --to 0x8CFFFFFF ram.bin
+
+For an arbitrarily short range:
+
+    py -3 host/receiver.py --from 0x8C000000 --to 0x8C000FFF tiny.bin
+
+Output defaults to ram_START_END.bin, and incomplete runs leave .partial.
+
+## Protocol
+
+Receiver sends an 8-byte little-endian start:u32/end:u32 in an fxlink
+ramdump:start message. Device sends ramdump:data with absolute_address:u32,
+size:u32, then raw bytes. Up to 512 KiB of data per logical message;
+the final message can be shorter. Device sends in 2 KiB USB slices.
+JustUI updates progress between messages.
+
+Max requested length is 32 MiB and addresses must be in
+0x80000000..0x9FFFFFFF. These are merely numeric guards, NOT proof
+of readable RAM. Unmapped access may crash the ClassPad; save work.
+Not hardware-tested. 512 KiB logical messages may exceed limits of
+some fxlink versions; change CHUNK in both firmware and receiver if needed.
