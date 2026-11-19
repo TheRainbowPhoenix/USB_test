@@ -10,6 +10,7 @@
 #include <justui/jwidget.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #define CHUNK (512u*1024u)
 #define SLICE 2048u
@@ -21,7 +22,7 @@ static char message[100];
 
 static void display(char const *s)
 {
-    snprintf(message,sizeof message,"%s",s);
+    if(s != message) snprintf(message,sizeof message,"%s",s);
     jlabel_set_text(status,message);
     dclear(C_WHITE);
     jscene_render(scene);
