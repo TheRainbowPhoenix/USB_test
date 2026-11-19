@@ -1,54 +1,44 @@
-# ClassPad RAM dumper (32 MiB)
+# ClassPad RAM dumper — host-selected range
 
-JustUI progress screen and fxlink USB bulk transfer for **ClassPad II** (fx-CP).
-Reads the fixed virtual range **0x88000000–0x89FFFFFF** into a 32 MiB PC file.
-This is a read-only diagnostic, NOT a probe of physical installed RAM. If
-any address is not readable on your ClassPad, a CPU exception can reset/crash
-the add-in. Close apps and save your work before trying it.
+JustUI progress and fxlink USB on ClassPad II. Windows selects inclusive
+start/end addresses. Default: 0x8C000000 through 0x8CFFFFFF (16 MiB).
 
-## Build the ClassPad app
+## Build
 
-Use the existing fxSDK/gint/JustUI toolchain (or the repository's GitHub
-Actions CI workflow):
+Use the fxSDK/gint/JustUI environment or this repository's GitHub Actions:
 
     fxsdk build-cp
 
-Install `MyAddin.hh3` on the ClassPad and launch it. Tap **Start dump**.
-Connect the USB cable, then start the Windows program. The JustUI display
-updates once per 512 KiB message (64 messages).
+Install MyAddin.hh3, launch it, tap Start dump, and connect USB.
 
-## Windows receiver
+## Windows
 
-Download the Windows host artifact from the EXWord-Explorer repository's
-GitHub Actions (includes `libfxlink.dll` and `libusb-1.0.dll`). Put the
-two 64-bit DLLs next to `host/receiver.py`; install 64-bit Python 3.10+
-and ensure the fxlink USB interface is bound to WinUSB (eg via Zadig).
+Put libfxlink.dll and libusb-1.0.dll from EXWord-Explorer's Windows
+host GitHub Actions artifact beside host/receiver.py. Use 64-bit Python
+3.10+ and WinUSB for the fxlink interface.
 
-In PowerShell:
+    py -3 host/receiver.py
 
-    py -3 host/receiver.py ram_88000000.bin
+or with explicit inclusive addresses:
 
-The receiver sends a `ramdump:start` request, waits for exactly 64
-`ramdump:data` messages, checks offsets/lengths, and saves a
-32 MiB binary. Interrupted dumps retain a `.partial` file.
+    py -3 host/receiver.py --from 0x8C000000 --to 0x8CFFFFFF ram.bin
 
-## Wire protocol
+For an arbitrarily short range:
 
-* Host -> ClassPad: fxlink application `ramdump`, type `start`,
-  4-byte ASCII payload `GO32`.
-* ClassPad -> host: application `ramdump`, type `data`, body:
-  `u32 little-endian offset`, `u32 little-endian size`,
-  `size` raw bytes, with size = 524288.
-* Logical message size is 524296 bytes; gint writes it in 2048-byte slices.
-  This **does not** mean USB hardware packets are 512 KiB.
-* At most 2 KiB sent at a time by the firmware; no 512 KiB firmware buffer.
+    py -3 host/receiver.py --from 0x8C000000 --to 0x8C000FFF tiny.bin
 
-## Known limitations
+Output defaults to ram_START_END.bin, and incomplete runs leave .partial.
 
-Not hardware-tested. The fixed address range is assumed readable, and a
-fault cannot be recovered by this add-in. fxlink host and gint USB drivers
-must accept 512 KiB logical messages; some builds may impose smaller
-message limits. Try lowering `MESSAGE_SIZE` in firmware and the
-`CHUNK` constant in the receiver if this fails, keeping both equal and
-dividing 32 MiB exactly. The display is refreshed only between messages,
-not continuously inside the current 512 KiB transfer.
+## Protocol
+
+Receiver sends an 8-byte little-endian start:u32/end:u32 in an fxlink
+ramdump:start message. Device sends ramdump:data with absolute_address:u32,
+size:u32, then raw bytes. Up to 512 KiB of data per logical message;
+the final message can be shorter. Device sends in 2 KiB USB slices.
+JustUI updates progress between messages.
+
+Max requested length is 32 MiB and addresses must be in
+0x80000000..0x9FFFFFFF. These are merely numeric guards, NOT proof
+of readable RAM. Unmapped access may crash the ClassPad; save work.
+Not hardware-tested. 512 KiB logical messages may exceed limits of
+some fxlink versions; change CHUNK in both firmware and receiver if needed.
